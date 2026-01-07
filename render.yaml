@@ -1,0 +1,28 @@
+services:
+  # Backend API
+  - type: web
+    name: mediscan-api
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    rootDir: .
+    buildCommand: pip install -r requirements.txt
+    startCommand: cd new && gunicorn api_server:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: MODEL_URL
+        value: https://huggingface.co/yourusername/mediscan-model/resolve/main/chest_disease_efficientnetv2.h5
+    disk:
+      name: model-cache
+      mountPath: /opt/render/project/src/new/models
+      sizeGB: 1

@@ -1,0 +1,65 @@
+# Environment variables
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Node
+node_modules/
+.npm
+.pnp
+.pnp.js
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads
+uploads/
+new/uploads/
+*.log
+
+# CRITICAL: Training datasets (DO NOT DEPLOY - 5GB+)
+data/
+new/dataset/
+*.csv
+
+# Extra models - Keep ONLY chest_disease_efficientnetv2.h5
+new/models/chest_model_DenseNet121.h5
+new/models/chest_model_EfficientNetV2B0.h5
+new/models/chest_model_InceptionResNetV2.h5
+new/models/chest_model_InceptionV3.h5
+new/models/chest_model_MobileNetV3Large.h5
+new/models/chest_model_ResNet50V2.h5
+new/models/chest_model_VGG16.h5
+new/models/chest_model_Xception.h5
+new/models/chest_disease_model.h5
+
+# Frontend build
+frontend/dist/
+frontend/node_modules/

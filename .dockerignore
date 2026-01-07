@@ -1,0 +1,13 @@
+# Same as .gitignore
+data/
+new/dataset/
+node_modules/
+frontend/node_modules/
+.venv/
+*.pyc
+__pycache__/
+.git/
+.env
+*.db
+new/models/chest_model_*.h5
+new/uploads/
