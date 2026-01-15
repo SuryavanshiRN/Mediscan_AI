@@ -25,15 +25,16 @@ from supabase_client import get_supabase_client
 
 # Try to import Google Generative AI for prescription generation
 try:
-    from google import genai
+    import google.generativeai as genai
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', 'AIzaSyBPFPDPaOEOkEpq1EdWmUi3QTiCnUI9_58')
-    gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+    genai.configure(api_key=GEMINI_API_KEY)
+    gemini_model = genai.GenerativeModel('gemini-pro')
     GEMINI_AVAILABLE = True
-    print("✅ Gemini AI configured successfully (using new SDK)")
+    print("✅ Gemini AI configured successfully")
 except Exception as e:
     print(f"⚠️ Gemini AI not available: {e}")
     GEMINI_AVAILABLE = False
-    gemini_client = None
+    gemini_model = None
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for React frontend
@@ -676,7 +677,7 @@ def generate_prescription():
         patient_gender = data.get('patient_gender', 'N/A')
         clinical_info = data.get('clinical_info', '')
         
-        if not GEMINI_AVAILABLE or not gemini_client:
+        if not GEMINI_AVAILABLE or not gemini_model:
             print("⚠️ Gemini not available, using fallback")
             return jsonify({
                 'prescription': get_fallback_prescription(disease, "Gemini AI not configured")
@@ -718,10 +719,8 @@ Important:
         for model_name in models_to_try:
             try:
                 print(f"🤖 Trying model: {model_name}")
-                response = gemini_client.models.generate_content(
-                    model=model_name,
-                    contents=prompt
-                )
+                temp_model = genai.GenerativeModel(model_name)
+                response = temp_model.generate_content(prompt)
                 response_text = response.text.strip()
                 
                 # Clean up response - remove markdown code blocks if present
@@ -839,15 +838,13 @@ def health():
 @app.route('/api/gemini/test', methods=['GET'])
 def test_gemini():
     """Test Gemini API connection"""
-    if not GEMINI_AVAILABLE or not gemini_client:
+    if not GEMINI_AVAILABLE or not gemini_model:
         return jsonify({'status': 'unavailable', 'error': 'Gemini not configured'}), 503
     
     try:
         # Quick test with a simple prompt
-        response = gemini_client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents='Say "Gemini is working" in exactly 3 words'
-        )
+        test_model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        response = test_model.generate_content('Say "Gemini is working" in exactly 3 words')
         return jsonify({
             'status': 'working',
             'response': response.text[:100],

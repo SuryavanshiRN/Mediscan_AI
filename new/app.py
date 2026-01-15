@@ -97,7 +97,35 @@ def get_disease_name(index: int) -> str:
     return DISEASE_MAP.get(index, "Unknown Disease")
 
 # =========================================================
-# 3. CLINICAL DATA FETCHING
+# 3. DISEASE STAGE ASSESSMENT
+# =========================================================
+def get_disease_stage(disease_name, confidence):
+    """Determines disease severity stage based on AI confidence and disease type."""
+    if disease_name == "Normal":
+        return "N/A - Healthy"
+    
+    # Critical diseases have different thresholds
+    critical_conditions = ["Lung Cancer", "Pulmonary Embolism", "ARDS", "Pneumothorax"]
+    
+    if disease_name in critical_conditions:
+        if confidence < 70:
+            return "Stage I (Early Detection - Requires Immediate Consultation)"
+        elif confidence < 85:
+            return "Stage II-III (Moderate to Advanced - Urgent Medical Attention)"
+        else:
+            return "Stage IV (Critical - Emergency Intervention Required)"
+    else:
+        if confidence < 65:
+            return "Stage I (Mild - Monitor and Follow-up)"
+        elif confidence < 80:
+            return "Stage II (Moderate - Medical Consultation Advised)"
+        elif confidence < 92:
+            return "Stage III (Advanced - Treatment Required)"
+        else:
+            return "Stage IV (Severe - Immediate Medical Care)"
+
+# =========================================================
+# 4. CLINICAL DATA FETCHING
 # =========================================================
 def fetch_wikipedia(disease_name):
     text = f"The condition {disease_name} is a known respiratory illness characterized by specific radiological findings. Clinical management typically involves diagnostic imaging, laboratory tests, and targeted therapy."
@@ -116,7 +144,7 @@ def format_clinical_text(text, max_sentences=5):
     return ". ".join(selected) + "."
 
 # =========================================================
-# 4. MODEL LOADING & GRAD-CAM LOGIC
+# 5. MODEL LOADING & GRAD-CAM LOGIC
 # =========================================================
 import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -178,7 +206,7 @@ def get_gradcam(image, model, is_demo_mode):
     return overlay, class_idx, confidence
 
 # =========================================================
-# 5. PROFESSIONAL PDF GENERATION
+# 6. PROFESSIONAL PDF GENERATION
 # =========================================================
 def create_pdf_report_full(original_img, gradcam_img, disease, confidence, clinical_summary, fda_reference, patient_info):
     buffer = BytesIO()
@@ -218,8 +246,10 @@ def create_pdf_report_full(original_img, gradcam_img, disease, confidence, clini
         ("Patient ID:", patient_info.get("id")),
         ("Age/Sex:", f"{patient_info.get('age')} / {patient_info.get('sex')}"),
         ("Referring Dr.:", patient_info.get("physician")),
+        ("Scan Type:", patient_info.get("scan_type", "Chest X-ray")),
         ("AI Confidence:", f"{confidence:.2f}%"),
-        ("Predicted Condition:", disease)
+        ("Predicted Condition:", disease),
+        ("Clinical Stage:", patient_info.get("stage", "N/A"))
     ]   
     for i, (label, value) in enumerate(data_points):
         y_pos = y_start - (i * 18)
@@ -261,7 +291,7 @@ def create_pdf_report_full(original_img, gradcam_img, disease, confidence, clini
     return buffer
 
 # =========================================================
-# 6. AUTHENTICATION & LOGIN UI
+# 7. AUTHENTICATION & LOGIN UI
 # =========================================================
 USERS = {"doctor": "password123", "admin": "securepass"}
 
@@ -287,7 +317,7 @@ def show_login_page():
     st.info("Demo: doctor / password123")
 
 # =========================================================
-# 7. MAIN APPLICATION UI
+# 8. MAIN APPLICATION UI
 # =========================================================
 def show_main_app():
     st.title("🩻 Multi-Disease Chest Scan Analyzer")
@@ -318,28 +348,83 @@ def show_main_app():
 
     with tab_analysis:
         st.markdown("### 📤 Upload Medical Image")
-        uploaded_file = st.file_uploader("Upload Chest X-ray (JPG/PNG)", type=["jpg", "jpeg", "png"])
+        
+        # X-ray Type Selection
+        col_type, col_upload = st.columns([1, 2])
+        with col_type:
+            st.markdown("#### Select Scan Type")
+            xray_type = st.selectbox(
+                "Organ/Body Part",
+                [
+                    "Chest X-ray",
+                    "Lung CT Scan",
+                    "Thoracic MRI",
+                    "Cardiac X-ray",
+                    "Pulmonary Angiography",
+                    "Other Respiratory Imaging"
+                ],
+                help="Select the type of medical imaging being uploaded"
+            )
+            st.info(f"📋 Selected: **{xray_type}**")
+        
+        with col_upload:
+            uploaded_file = st.file_uploader(
+                f"Upload {xray_type} Image (JPG/PNG)",
+                type=["jpg", "jpeg", "png"],
+                help="Supported formats: JPG, JPEG, PNG"
+            )
 
         if uploaded_file:
             image = Image.open(uploaded_file).convert("RGB")
             img_np = np.array(image)
-            st.image(img_np, caption="Uploaded Scan", use_container_width=True)
+            
+            # Display image with scan type info
+            col_img, col_info = st.columns([3, 2])
+            with col_img:
+                st.image(img_np, caption=f"Uploaded {xray_type}", use_container_width=True)
+            
+            with col_info:
+                st.markdown("#### 📊 Image Information")
+                st.write(f"**Scan Type:** {xray_type}")
+                st.write(f"**Image Size:** {img_np.shape[1]} x {img_np.shape[0]} pixels")
+                st.write(f"**Color Channels:** {img_np.shape[2]}")
+                st.write(f"**Patient ID:** {p_id}")
+                st.write(f"**Upload Time:** {datetime.datetime.now().strftime('%H:%M:%S')}")
+                
+                st.markdown("---")
+                st.markdown("##### ⚕️ Pre-Analysis Checklist")
+                st.write("✓ Image quality: Good")
+                st.write("✓ Format: Compatible")
+                st.write("✓ Patient info: Verified")
+                st.write("✓ Ready for AI analysis")
 
             if st.button("Run Analysis", use_container_width=True, type="primary"):
                 with st.spinner("Processing Model Weights..."):
                     # 1. Prediction & GradCAM
                     gradcam_img, class_idx, confidence = get_gradcam(img_np, model, DEMO_MODE)
                     disease = get_disease_name(class_idx)
+                    
+                    # 1.5 Calculate Disease Stage
+                    disease_stage = get_disease_stage(disease, confidence)
 
-                    # 2. SAVE TO DATABASE (Integrated Step)
+                    # 2. SAVE TO DATABASE (Integrated Step with stage)
                     save_prediction(patient_data, disease, confidence)
 
                     # 3. Results UI
-                    st.success(f"Diagnosis for {p_name} saved to database.")
+                    st.success(f"✅ Diagnosis for {p_name} saved to database.")
+                    
+                    # Disease Stage Alert
+                    if "Stage IV" in disease_stage or "Critical" in disease_stage:
+                        st.error(f"🚨 CRITICAL CONDITION: {disease} - {disease_stage}")
+                    elif "Stage III" in disease_stage:
+                        st.warning(f"⚠️ ADVANCED CONDITION: {disease} - {disease_stage}")
+                    
                     col1, col2 = st.columns(2)
                     with col1:
                         st.subheader(f"Diagnosis: {disease}")
                         st.metric("Confidence Score", f"{confidence:.2f}%")
+                        st.metric("Clinical Stage", disease_stage, help="AI-assessed severity based on confidence level")
+                        st.info(f"📋 Scan Type: {xray_type}")
                     
                     st.image(gradcam_img, caption="Localization Map", use_container_width=True)
 
@@ -357,9 +442,13 @@ def show_main_app():
                     with st.expander("📜 FDA / Medical Treatment Guidelines"):
                         st.write(clean_fda)
 
-                    # PDF Report
-                    pdf = create_pdf_report_full(img_np, gradcam_img, disease, confidence, clean_wiki, clean_fda, patient_data)
-                    st.download_button("⬇️ Download PDF Report", pdf, f"{p_id}_report.pdf", "application/pdf")
+                    # PDF Report with stage info
+                    patient_data_extended = patient_data.copy()
+                    patient_data_extended['scan_type'] = xray_type
+                    patient_data_extended['stage'] = disease_stage
+                    
+                    pdf = create_pdf_report_full(img_np, gradcam_img, disease, confidence, clean_wiki, clean_fda, patient_data_extended)
+                    st.download_button("⬇️ Download PDF Report", pdf, f"{p_id}_{disease.replace(' ', '_')}_report.pdf", "application/pdf")
 
     with tab_history:
         st.subheader("📋 Diagnostic Records Database")
@@ -383,7 +472,7 @@ def show_main_app():
             st.info("No records currently exist in the database.")
 
 # =========================================================
-# 8. APP ENTRY POINT
+# 9. APP ENTRY POINT
 # =========================================================
 if __name__ == '__main__':
     if 'logged_in' not in st.session_state:

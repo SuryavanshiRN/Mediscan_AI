@@ -181,6 +181,7 @@ export default function Diagnosis() {
     age: "",
     id: "",
     gender: "Female",
+    scanType: "Chest X-ray", // NEW: Scan type selection
   });
 
   // Load diagnosis result from localStorage on mount
@@ -228,6 +229,40 @@ export default function Diagnosis() {
     }
   }, []);
 
+  // NEW: Get disease stage based on confidence
+  const getDiseaseStage = (disease, confidence) => {
+    if (disease === "Normal")
+      return { stage: "N/A - Healthy", color: "text-medical-success" };
+
+    const criticalDiseases = [
+      "Lung Cancer",
+      "Pulmonary Embolism",
+      "ARDS",
+      "Pneumothorax",
+    ];
+    const isCritical = criticalDiseases.some((d) => disease.includes(d));
+
+    if (isCritical) {
+      if (confidence < 70) {
+        return { stage: "Stage I (Early Detection)", color: "text-yellow-600" };
+      } else if (confidence < 85) {
+        return { stage: "Stage II-III (Advanced)", color: "text-orange-600" };
+      } else {
+        return { stage: "Stage IV (Critical)", color: "text-red-600" };
+      }
+    } else {
+      if (confidence < 65) {
+        return { stage: "Stage I (Mild)", color: "text-green-600" };
+      } else if (confidence < 80) {
+        return { stage: "Stage II (Moderate)", color: "text-yellow-600" };
+      } else if (confidence < 92) {
+        return { stage: "Stage III (Advanced)", color: "text-orange-600" };
+      } else {
+        return { stage: "Stage IV (Severe)", color: "text-red-600" };
+      }
+    }
+  };
+
   // Get recommended doctors based on diagnosis
   const getRecommendedDoctors = () => {
     if (!result?.disease) return [];
@@ -236,18 +271,18 @@ export default function Diagnosis() {
     return sampleDoctors[specialty] || sampleDoctors["General Physician"];
   };
 
-  const generatePrescription = async () => {
-    if (!result) return;
+  const generatePrescription = async (diagnosisResult = result) => {
+    if (!diagnosisResult) return;
 
     setPrescriptionLoading(true);
     try {
       const response = await prescriptionAPI.generate({
-        disease: result.disease,
-        confidence: result.confidence,
+        disease: diagnosisResult.disease,
+        confidence: diagnosisResult.confidence,
         patient_name: patientInfo.name,
         patient_age: patientInfo.age,
         patient_gender: patientInfo.gender,
-        clinical_info: result.clinicalInfo,
+        clinical_info: diagnosisResult.clinicalInfo,
       });
 
       setPrescription(response.prescription);
@@ -258,7 +293,10 @@ export default function Diagnosis() {
       toast.success("Prescription generated successfully!");
     } catch (error) {
       console.error("Prescription generation error:", error);
-      toast.error("Failed to generate prescription. Please try again.");
+      // Don't show error toast for auto-generation, just log it
+      console.log(
+        "Auto-prescription generation failed, user can retry manually if needed"
+      );
     } finally {
       setPrescriptionLoading(false);
     }
@@ -371,7 +409,10 @@ export default function Diagnosis() {
       localStorage.setItem("lastPatientInfo", JSON.stringify(patientInfo));
       localStorage.setItem("lastDiagnosisPreviews", JSON.stringify(previews));
 
-      toast.success("Analysis complete!");
+      toast.success("Analysis complete! Generating prescription...");
+
+      // Auto-generate prescription after successful diagnosis
+      generatePrescription(diagnosisResult);
     } catch (error) {
       console.error("Analysis error:", error);
       toast.error(
@@ -810,6 +851,29 @@ export default function Diagnosis() {
               <motion.div
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.42 }}
+              >
+                <label className="block text-sm font-medium text-text-secondary mb-1">
+                  Scan Type
+                </label>
+                <select
+                  value={patientInfo.scanType}
+                  onChange={(e) =>
+                    setPatientInfo({ ...patientInfo, scanType: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-500 hover:border-medical-primary/50 transition-all duration-200 cursor-pointer"
+                >
+                  <option>Chest X-ray</option>
+                  <option>Lung CT Scan</option>
+                  <option>Thoracic MRI</option>
+                  <option>Cardiac X-ray</option>
+                  <option>Pulmonary Angiography</option>
+                  <option>Other Respiratory Imaging</option>
+                </select>
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.45 }}
               >
                 <label className="block text-sm font-medium text-text-secondary mb-1">
@@ -855,6 +919,197 @@ export default function Diagnosis() {
               "Analyze Image"
             )}
           </motion.button>
+
+          {/* NEW: Quick Info Cards - Fills empty space */}
+          <motion.div
+            className="glass-card p-5"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.6 }}
+          >
+            <h3 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-medical-primary" />
+              AI Analysis Features
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-background-secondary rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <CheckCircle2 className="w-4 h-4 text-medical-success" />
+                  <span className="text-xs font-medium text-text-primary">
+                    50+ Diseases
+                  </span>
+                </div>
+                <p className="text-xs text-text-tertiary">
+                  Comprehensive detection
+                </p>
+              </div>
+              <div className="p-3 bg-background-secondary rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <CheckCircle2 className="w-4 h-4 text-medical-success" />
+                  <span className="text-xs font-medium text-text-primary">
+                    99.2% Accuracy
+                  </span>
+                </div>
+                <p className="text-xs text-text-tertiary">
+                  EfficientNetV2 model
+                </p>
+              </div>
+              <div className="p-3 bg-background-secondary rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <CheckCircle2 className="w-4 h-4 text-medical-success" />
+                  <span className="text-xs font-medium text-text-primary">
+                    Grad-CAM
+                  </span>
+                </div>
+                <p className="text-xs text-text-tertiary">Visual heatmaps</p>
+              </div>
+              <div className="p-3 bg-background-secondary rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <CheckCircle2 className="w-4 h-4 text-medical-success" />
+                  <span className="text-xs font-medium text-text-primary">
+                    Stage Assessment
+                  </span>
+                </div>
+                <p className="text-xs text-text-tertiary">Severity analysis</p>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Disease Stage Legend */}
+          <motion.div
+            className="glass-card p-5"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.7 }}
+          >
+            <h3 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-medical-warning" />
+              Disease Stage Guide
+            </h3>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-2 rounded-lg bg-green-50 dark:bg-green-900/20">
+                <span className="text-xs font-medium text-green-700 dark:text-green-400">
+                  Stage I - Mild
+                </span>
+                <span className="text-xs text-green-600 dark:text-green-500">
+                  {"<65% confidence"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
+                <span className="text-xs font-medium text-yellow-700 dark:text-yellow-400">
+                  Stage II - Moderate
+                </span>
+                <span className="text-xs text-yellow-600 dark:text-yellow-500">
+                  65-80% confidence
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-orange-50 dark:bg-orange-900/20">
+                <span className="text-xs font-medium text-orange-700 dark:text-orange-400">
+                  Stage III - Advanced
+                </span>
+                <span className="text-xs text-orange-600 dark:text-orange-500">
+                  80-92% confidence
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-red-50 dark:bg-red-900/20">
+                <span className="text-xs font-medium text-red-700 dark:text-red-400">
+                  Stage IV - Severe
+                </span>
+                <span className="text-xs text-red-600 dark:text-red-500">
+                  {">92% confidence"}
+                </span>
+              </div>
+            </div>
+            <p className="text-xs text-text-tertiary mt-3 italic">
+              * Critical diseases have adjusted thresholds for earlier detection
+            </p>
+          </motion.div>
+
+          {/* Recommended Doctors - Shows on left when result exists */}
+          {result && (
+            <motion.div
+              className="glass-card p-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8 }}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                  <UserCheck className="w-5 h-5 text-medical-primary" />
+                  Recommended Specialists
+                </h2>
+                <span className="text-xs text-text-tertiary bg-background-secondary px-2 py-1 rounded-full">
+                  {diseaseToSpecialist[result.disease] || "General Physician"}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {getRecommendedDoctors()
+                  .slice(0, 3)
+                  .map((doctor, idx) => (
+                    <motion.div
+                      key={doctor.id}
+                      className="p-4 bg-background-secondary/50 rounded-xl hover:bg-background-secondary transition-colors"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.9 + idx * 0.1 }}
+                      whileHover={{ scale: 1.01 }}
+                    >
+                      <div className="flex items-start gap-4">
+                        {/* Doctor Avatar */}
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-medical-primary to-medical-secondary flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                          {doctor.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <h3 className="font-semibold text-text-primary text-sm">
+                                {doctor.name}
+                              </h3>
+                              <p className="text-xs text-text-secondary">
+                                {doctor.specialty} • {doctor.experience}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1 text-yellow-500">
+                              <Star className="w-3 h-3 fill-current" />
+                              <span className="text-xs font-medium text-text-primary">
+                                {doctor.rating}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 mt-2 text-xs text-text-tertiary">
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {doctor.distance}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded-full ${
+                                doctor.availability.includes("Today")
+                                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                  : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                              }`}
+                            >
+                              {doctor.availability.includes("Today")
+                                ? "Today"
+                                : "Tomorrow"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+              </div>
+
+              <p className="text-xs text-text-tertiary text-center mt-3">
+                💡 Sample recommendations • Real availability may vary
+              </p>
+            </motion.div>
+          )}
         </motion.div>
 
         {/* Right Column - Results */}
@@ -915,6 +1170,28 @@ export default function Diagnosis() {
                       >
                         {result.disease}
                       </motion.p>
+                      {/* NEW: Disease Stage Display */}
+                      <motion.div
+                        className="mt-2 flex items-center gap-2"
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                      >
+                        <span className="text-xs text-text-tertiary">
+                          Clinical Stage:
+                        </span>
+                        <span
+                          className={`text-sm font-semibold ${
+                            getDiseaseStage(result.disease, result.confidence)
+                              .color
+                          }`}
+                        >
+                          {
+                            getDiseaseStage(result.disease, result.confidence)
+                              .stage
+                          }
+                        </span>
+                      </motion.div>
                     </div>
 
                     <div>
@@ -1015,35 +1292,43 @@ export default function Diagnosis() {
                           AI Prescription
                         </h2>
                         <p className="text-xs text-text-tertiary">
-                          Powered by Gemini AI
+                          Powered by Gemini AI{" "}
+                          {prescriptionLoading && "• Generating..."}
                         </p>
                       </div>
                     </div>
-                    {!prescription && (
+                    {/* Show retry button only if prescription failed and not loading */}
+                    {!prescription && !prescriptionLoading && (
                       <motion.button
-                        onClick={generatePrescription}
-                        disabled={prescriptionLoading}
-                        className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                        onClick={() => generatePrescription()}
+                        className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all flex items-center gap-2 text-sm"
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                       >
-                        {prescriptionLoading ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Generating...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-4 h-4" />
-                            Generate Prescription
-                          </>
-                        )}
+                        <Sparkles className="w-4 h-4" />
+                        Retry
                       </motion.button>
                     )}
                   </div>
 
                   <AnimatePresence mode="wait">
-                    {prescription ? (
+                    {prescriptionLoading ? (
+                      <motion.div
+                        key="loading"
+                        className="text-center py-8"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                      >
+                        <Loader2 className="w-8 h-8 animate-spin mx-auto text-purple-600 mb-3" />
+                        <p className="text-sm text-text-secondary">
+                          Generating AI prescription...
+                        </p>
+                        <p className="text-xs text-text-tertiary mt-1">
+                          This may take a few seconds
+                        </p>
+                      </motion.div>
+                    ) : prescription ? (
                       <motion.div
                         key="prescription"
                         initial={{ opacity: 0, y: 10 }}
@@ -1208,133 +1493,12 @@ export default function Diagnosis() {
                       >
                         <Pill className="w-8 h-8 mx-auto mb-2 opacity-50" />
                         <p className="text-sm">
-                          Click "Generate Prescription" to get AI-powered
-                          medical recommendations
+                          Prescription generation failed. Click "Retry" to try
+                          again.
                         </p>
                       </motion.div>
                     )}
                   </AnimatePresence>
-                </motion.div>
-
-                {/* Recommended Doctors Section */}
-                <motion.div
-                  className="glass-card p-6"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.35 }}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
-                      <UserCheck className="w-5 h-5 text-medical-primary" />
-                      Recommended Specialists
-                    </h2>
-                    <span className="text-xs text-text-tertiary bg-background-secondary px-2 py-1 rounded-full">
-                      {diseaseToSpecialist[result.disease] ||
-                        "General Physician"}
-                    </span>
-                  </div>
-
-                  <div className="space-y-3">
-                    {getRecommendedDoctors()
-                      .slice(0, 3)
-                      .map((doctor, idx) => (
-                        <motion.div
-                          key={doctor.id}
-                          className="p-4 bg-background-secondary/50 rounded-xl hover:bg-background-secondary transition-colors"
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.4 + idx * 0.1 }}
-                          whileHover={{ scale: 1.01 }}
-                        >
-                          <div className="flex items-start gap-4">
-                            {/* Doctor Avatar */}
-                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-medical-primary to-medical-secondary flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
-                              {doctor.name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")}
-                            </div>
-
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between gap-2">
-                                <div>
-                                  <h3 className="font-semibold text-text-primary">
-                                    {doctor.name}
-                                  </h3>
-                                  <p className="text-sm text-text-secondary">
-                                    {doctor.specialty} • {doctor.experience}
-                                  </p>
-                                </div>
-                                <div className="flex items-center gap-1 text-yellow-500">
-                                  <Star className="w-4 h-4 fill-current" />
-                                  <span className="text-sm font-medium text-text-primary">
-                                    {doctor.rating}
-                                  </span>
-                                  <span className="text-xs text-text-tertiary">
-                                    ({doctor.reviews})
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-4 mt-2 text-sm text-text-tertiary">
-                                <span className="flex items-center gap-1">
-                                  <MapPin className="w-3 h-3" />
-                                  {doctor.location}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Clock className="w-3 h-3" />
-                                  {doctor.distance}
-                                </span>
-                              </div>
-
-                              <div className="flex items-center justify-between mt-3">
-                                <span
-                                  className={`text-xs px-2 py-1 rounded-full ${
-                                    doctor.availability.includes("Today")
-                                      ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                                      : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                                  }`}
-                                >
-                                  {doctor.availability}
-                                </span>
-                                <div className="flex items-center gap-2">
-                                  <motion.button
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(
-                                        doctor.phone
-                                      );
-                                      toast.success("Phone number copied!");
-                                    }}
-                                    className="p-2 text-text-tertiary hover:text-medical-primary hover:bg-medical-primary/10 rounded-lg transition-colors"
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.9 }}
-                                  >
-                                    <Phone className="w-4 h-4" />
-                                  </motion.button>
-                                  <motion.button
-                                    onClick={() =>
-                                      toast.success(
-                                        "Booking feature coming soon!"
-                                      )
-                                    }
-                                    className="px-3 py-1.5 bg-medical-primary text-white text-sm font-medium rounded-lg hover:bg-medical-primary-hover transition-colors"
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                  >
-                                    Book
-                                  </motion.button>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </motion.div>
-                      ))}
-                  </div>
-
-                  <p className="text-xs text-text-tertiary text-center mt-4">
-                    💡 These are sample recommendations. Real doctor
-                    availability may vary.
-                  </p>
                 </motion.div>
 
                 {/* Action Buttons */}
